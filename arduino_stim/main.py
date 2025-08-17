@@ -1,20 +1,20 @@
-import time
-import serial
-import pylsl
 import threading
-import tomllib
-import pylsl
+import time
 
-from fire import Fire
-from dareplane_utils.stream_watcher.lsl_stream_watcher import StreamWatcher
+import pylsl
+import serial
+import tomllib
 from dareplane_utils.logging.logger import get_logger
+from dareplane_utils.stream_watcher.lsl_stream_watcher import StreamWatcher
+from fire import Fire
+
 from arduino_stim.utils.time import sleep_s
 
 logger = get_logger("arduino_stim")
 
 
 def init_lsl_outlet() -> pylsl.StreamOutlet:
-    """    
+    """
     Initializes an LSL outlet to stream Arduino commands as a single-channel stream.
 
     This function creates an LSL outlet named ``arduino_cmd`` with a single channel of type "Marker" and format "int32".
@@ -78,9 +78,7 @@ def lsl_delay(dt_us: int = 0):
         pass
 
 
-def main(
-    stop_event: threading.Event = threading.Event(), logger_level: int = 10
-):
+def main(stop_event: threading.Event = threading.Event(), logger_level: int = 10):
     """
     The Arduino stimulator main loop.
 
@@ -123,15 +121,10 @@ def main(
         while not stop_event.is_set() and arduino is not None:
             # limit the update rate
             if time.perf_counter_ns() - tlast > dt_us * 1e3:
-                preupdate = time.perf_counter_ns()
                 sw.update()
                 dt_ms = (time.perf_counter_ns() - tlast) / 1e6
 
-                if (
-                    sw.n_new > 0
-                    and dt_ms > config["stimulation"]["grace_period_ms"]
-                ):
-
+                if sw.n_new > 0 and dt_ms > config["stimulation"]["grace_period_ms"]:
                     val = sw.unfold_buffer()[-1]
 
                     # Process the incoming data and send commands
@@ -139,7 +132,6 @@ def main(
                     if val != last_val and len(val) == 1:
                         ival = int(val[0])
                         if ival > 127:
-                            # print("Pushing up-down")
                             arduino.write("u\n".encode())
                             arduino.write("d\n".encode())
 
@@ -157,7 +149,7 @@ def get_main_thread() -> tuple[threading.Thread, threading.Event]:
     Run the main loop in a separate thread.
 
     This function creates and starts a background thread that runs the main
-    arduino stimulator loop. It allows the Arduino controller to be stopped via 
+    arduino stimulator loop. It allows the Arduino controller to be stopped via
     the returned Event object.
 
     Returns
@@ -182,28 +174,7 @@ def write_and_read(arduino: serial.Serial, message: str):
     while time.time_ns() - tpre < 10_000_000_000:
         arduino.write("u\n".encode())
         arduino.write("d\n".encode())
-    # l = arduino.readline()
-    # #
-    # tfirst = time.time_ns()
-    # print(f"{tfirst-tpre=}")
-    # l2 = arduino.readline()
-    # tsecond = time.time_ns()
-    #
-    # l = l.decode()
-    # l2 = l2.decode()
-    #
-    # retstr = f"{l=} {l2=} {tsecond-tfirst=} {tfirst-tpre=} {tsecond-tpre=}"
-    # print(retstr)
 
-
-# In [89]: %timeit arduino.write('u'.encode())
-# 520 µs ± 19.7 ns per loop (mean ± std. dev. of 7 runs, 1,000 loops ea
-# ch)
-# Also the full cycle seems to be about 520us as tested with the oscilloscope and this:
-#
-# while time.time_ns() - tpre < 10_000_000_000:
-#     arduino.write('u'.encode())
-#     arduino.write('d'.encode())
 
 if __name__ == "__main__":
     Fire(main)
